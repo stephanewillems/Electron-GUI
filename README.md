@@ -28,3 +28,59 @@ export default {
 - Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
 - Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
 - Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+
+
+extra info for splashscreen
+const { app, BrowserWindow } = require('electron');
+
+let mainWindow;
+let splash;
+
+app.on('ready', () => {
+  // Create the splash screen
+  splash = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+  });
+  splash.loadFile('splash.html');
+
+  // Create the main window
+  mainWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    show: false, // Don't show until ready-to-show
+  });
+
+  mainWindow.loadFile('index.html');
+
+  mainWindow.once('ready-to-show', () => {
+    splash.close();
+    mainWindow.show();
+  });
+});
+
+
+
+
+
+// wait for everything to be loaded
+mainWindow.once('ready-to-show', () => {
+  mainWindow.show();
+});
+
+// enable background COlor
+
+  width: 800,
+  height: 600,
+  backgroundColor: '#2e2c29', // bg color
+});
+
+
+// If you’re using BrowserWindow.loadURL, listen for the DOMContentLoaded event to ensure the DOM is fully loaded before displaying the window.
+mainWindow.webContents.once('dom-ready', () => {
+  mainWindow.show();
+});
+
