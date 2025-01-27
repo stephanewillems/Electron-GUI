@@ -84,3 +84,74 @@ mainWindow.webContents.once('dom-ready', () => {
   mainWindow.show();
 });
 
+:/ hook to handle click
+import { useEffect } from "react";
+
+type UseHandleClickProps = {
+  disabled?: boolean;
+  refs: React.RefObject<HTMLElement | HTMLButtonElement>[]; // Supports buttons or any element
+  callback: () => void;
+  stopPropagation?: boolean; // Optional: Stop event propagation
+};
+
+const useHandleClick = ({ disabled, refs, callback, stopPropagation = false }: UseHandleClickProps) => {
+  useEffect(() => {
+    if (disabled) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (stopPropagation) {
+        event.stopPropagation();
+      }
+
+      // Check if the click is inside any of the provided refs
+      const isInsideTarget = refs.some((ref) => ref.current?.contains(event.target as Node));
+
+      if (isInsideTarget) {
+        callback();
+      }
+    };
+
+    document.addEventListener("click", handleClick);
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
+  }, [disabled, refs, callback, stopPropagation]);
+};
+
+export default useHandleClick;
+
+
+EXAMPLE USAGE
+
+import React, { useRef } from "react";
+import useHandleClick from "./useHandleClick";
+
+const MyComponent = () => {
+  const headerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const deletePopupRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleSelection = () => {
+    console.log("Selection toggled!");
+  };
+
+  // Using the custom hook
+  useHandleClick({
+    disabled: false,
+    refs: [headerRef, buttonRef, deletePopupRef],
+    callback: handleToggleSelection,
+    stopPropagation: true, // Prevent event propagation
+  });
+
+  return (
+    <div>
+      <div ref={headerRef}>Header (Click here)</div>
+      <button ref={buttonRef}>Click Me (Button)</button>
+      <div ref={deletePopupRef}>Delete Popup</div>
+    </div>
+  );
+};
+
+export default MyComponent;
+
+
