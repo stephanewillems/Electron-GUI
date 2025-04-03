@@ -155,3 +155,51 @@ const MyComponent = () => {
 export default MyComponent;
 
 
+
+import React from "react";
+
+// A small subset of supported tags
+const allowedTags = {
+  p: (children, key) => <p key={key}>{children}</p>,
+  strong: (children, key) => <strong key={key}>{children}</strong>,
+  em: (children, key) => <em key={key}>{children}</em>,
+  ul: (children, key) => <ul key={key}>{children}</ul>,
+  ol: (children, key) => <ol key={key}>{children}</ol>,
+  li: (children, key) => <li key={key}>{children}</li>,
+  a: (children, key, attributes) => (
+    <a key={key} href={attributes.href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  br: (_, key) => <br key={key} />,
+};
+
+function parseNode(node, key) {
+  if (node.nodeType === 3) {
+    // Text node
+    return node.textContent;
+  }
+
+  if (node.nodeType !== 1 || !allowedTags[node.nodeName.toLowerCase()]) {
+    return null; // unsupported tag
+  }
+
+  const tag = node.nodeName.toLowerCase();
+  const children = Array.from(node.childNodes).map((child, i) => parseNode(child, i));
+  const attributes = Object.fromEntries(Array.from(node.attributes || []).map(attr => [attr.name, attr.value]));
+
+  return allowedTags[tag](children, key, attributes);
+}
+
+export function TiptapHTMLViewer({ html }) {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const content = Array.from(container.childNodes).map((node, i) => parseNode(node, i));
+
+  return <>{content}</>;
+}
+
+
+
+
