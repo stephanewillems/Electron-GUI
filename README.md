@@ -200,6 +200,89 @@ export function TiptapHTMLViewer({ html }) {
   return <>{content}</>;
 }
 
+// nexus install
+nexus3-with-node-modules/
+├── Dockerfile
+├── package.json
+└── README.md
+
+Dockerfile
+# Start from official Nexus 3 image
+FROM sonatype/nexus3:3.68.0
+
+USER root
+
+# Install Node.js and npm
+RUN apk add --no-cache nodejs npm
+
+# Create a working directory for installing npm packages
+WORKDIR /tmp/npm-install
+
+# Copy package.json to install dependencies
+COPY package.json ./
+
+# Set npm to use your Nexus registry (replace with actual URL)
+RUN npm config set registry http://localhost:8081/repository/npm-group/
+
+# Install dependencies and move them to a persistent location
+RUN npm install && \
+    mkdir -p /opt/node_modules && \
+    cp -r node_modules /opt/node_modules && \
+    rm -rf /tmp/npm-install
+
+# Restore proper permissions for Nexus to run
+RUN chown -R nexus /opt/node_modules
+
+# Switch back to Nexus user
+USER nexus
+
+# Expose Nexus default port
+EXPOSE 8081
+
+# Entry point (run Nexus)
+CMD ["/opt/sonatype/nexus/bin/nexus", "run"]
+
+
+{
+  "name": "offline-deps",
+  "version": "1.0.0",
+  "description": "Preload node_modules for airgapped environments",
+  "dependencies": {
+    "axios": "^1.6.5",
+    "express": "^4.18.2"
+  }
+}
+
+
+# Nexus3 with Preinstalled node_modules
+
+This image:
+
+- Starts Nexus 3
+- Uses the internal Nexus npm proxy
+- Installs dependencies from `package.json`
+- Embeds `node_modules` at `/opt/node_modules`
+
+## Build Image
+
+```bash
+podman build -t nexus3-with-deps .
+
+
+Run Locally
+podman run -d -p 8081:8081 nexus3-with-deps
+
+Airgaped
+podman save -o nexus3-with-deps.tar nexus3-with-deps
+
+On machine
+podman load -i nexus3-with-deps.tar
+podman run -d -p 8081:8081 nexus3-with-deps
+
+
+
+
+
 
 
 
