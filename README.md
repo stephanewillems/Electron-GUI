@@ -279,7 +279,105 @@ On machine
 podman load -i nexus3-with-deps.tar
 podman run -d -p 8081:8081 nexus3-with-deps
 
+import { protocol } from 'electron'
+import { readFile } from 'fs/promises'
 
+app.whenReady().then(() => {
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const url = new URL(request.url)
+    const pathname = decodeURIComponent(url.pathname)
+    const filePath = join(__dirname, '../renderer', pathname)
+    callback({ path: filePath })
+  })
+
+
+export default defineConfig({
+  base: './', // makes assets load as relative paths
+  ...
+})
+
+  createWindow()
+})
+
+if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+} else {
+  mainWindow.loadURL('app://index.html') // instead of loadFile()
+}
+
+
+
+main.ts
+
+import { app, shell, BrowserWindow, ipcMain, protocol } from 'electron'
+import { join } from 'path'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
+
+function createWindow(): void {
+  const mainWindow = new BrowserWindow({
+    width: 900,
+    height: 670,
+    show: false,
+    autoHideMenuBar: true,
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true, // Ensures cookie & CORS security
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show()
+  })
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  // Load renderer
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadURL('app://index.html') // <-- Secure app protocol
+  }
+}
+
+app.whenReady().then(() => {
+  // Register custom secure app:// protocol
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const url = new URL(request.url)
+    const pathname = decodeURIComponent(url.pathname)
+    const fullPath = join(__dirname, '../renderer', pathname)
+    callback({ path: fullPath })
+  })
+
+  // Set app ID for Windows notifications
+  electronApp.setAppUserModelId('com.electron')
+
+  // Enable default dev shortcuts in dev, disable refresh in prod
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  ipcMain.on('ping', () => console.log('pong'))
+
+  createWindow()
+
+  app.on('activate', function () {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
 
 
 
