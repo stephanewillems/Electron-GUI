@@ -381,6 +381,119 @@ app.on('window-all-closed', () => {
 
 
 
+import { app, BrowserWindow, ipcMain, protocol, shell, session } from 'electron'
+import { join } from 'path'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
 
+// Global references to prevent garbage collection
+let loginWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null
+
+// Create the login window
+function createLoginWindow() {
+  loginWindow = new BrowserWindow({
+    width: 400,
+    height: 500,
+    resizable: false,
+    autoHideMenuBar: true,
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      session: session.defaultSession, // share session
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true
+    }
+  })
+
+  loginWindow.on('ready-to-show', () => {
+    loginWindow?.show()
+  })
+
+  loginWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    loginWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/login`)
+  } else {
+    loginWindow.loadURL('app://index.html#/login')
+  }
+}
+
+// Create the main window after login
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    autoHideMenuBar: true,
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      session: session.defaultSession, // share session
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show()
+  })
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/home`)
+  } else {
+    mainWindow.loadURL('app://index.html#/home')
+  }
+}
+
+app.whenReady().then(() => {
+  // Secure custom app:// protocol to avoid file:// issues
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const url = new URL(request.url)
+    const pathname = decodeURIComponent(url.pathname)
+    const fullPath = join(__dirname, '../renderer', pathname)
+    callback({ path: fullPath })
+  })
+
+  // App model ID for Windows
+  electronApp.setAppUserModelId('com.electron')
+
+  // Enable F12 in dev, disable reload in prod
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  // IPC from renderer after successful login
+  ipcMain.on('login-success', () => {
+    if (loginWindow) {
+      loginWindow.close()
+      loginWindow = null
+    }
+    createMainWindow()
+  })
+
+  createLoginWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createLoginWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
 
 
