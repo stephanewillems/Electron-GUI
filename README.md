@@ -497,3 +497,99 @@ app.on('window-all-closed', () => {
 })
 
 
+
+const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('fs').promises;
+const path = require('path');
+
+function sanitizeFilename(s) {
+  return String(s ?? '')
+    .replace(/[\/\\?%*:|"<>]/g, '-')     // strip illegal filename chars
+    .replace(/\s+/g, ' ')
+    .trim() || 'file';
+}
+
+function renderHTML(item) {
+  // TODO: customize this template for your data
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PDF</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: system-ui, Arial, sans-serif; }
+    h1 { margin: 0 0 12px; font-size: 20px; }
+    .card { border: 1px solid #ddd; padding: 12px; border-radius: 8px; }
+    .row { margin: 6px 0; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>${item.title ?? 'Untitled'}</h1>
+  <div class="card">
+    <div class="row"><strong>ID:</strong> ${item.id ?? '-'}</div>
+    <div class="row"><strong>Name:</strong> ${item.name ?? '-'}</div>
+    <div class="row"><strong>Description:</strong><br/><small>${item.description ?? '-'}</small></div>
+    <!-- add whatever fields you need -->
+  </div>
+</body>
+</html>`;
+}
+
+async function createPdfForItem(item, index) {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      offscreen: true,     // no visible window needed
+    }
+  });
+
+  try {
+    const html = renderHTML(item);
+    // load HTML from a data URL so you don’t need a file
+    await win.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html));
+
+    // wait for fonts/layout to settle a bit (optional but helps avoid blank PDFs)
+    await win.webContents.executeJavaScript('document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()');
+
+    const pdfData = await win.webContents.printToPDF({
+      marginsType: 1,           // default
+      printBackground: true,    // keep CSS backgrounds
+      pageSize: 'A4',           // or 'Letter'
+      landscape: false,
+    });
+
+    // resolve Downloads folder (Electron handles Linux correctly)
+    let downloadsDir = app.getPath('downloads');
+    if (!downloadsDir) {
+      // ultra-conservative fallback for weird setups
+      downloadsDir = path.join(app.getPath('home'), 'Downloads');
+    }
+
+    const base = sanitizeFilename(item.name || item.title || `item-${index + 1}`);
+    const filePath = path.join(downloadsDir, `${base}.pdf`);
+
+    await fs.writeFile(filePath, pdfData);
+    return filePath;
+  } finally {
+    win.destroy();
+  }
+}
+
+// Call this from renderer with the array of objects
+ipcMain.handle('generate-pdfs', async (_evt, items = []) => {
+  const outputs = [];
+  for (let i = 0; i < items.length; i++) {
+    // do them sequentially to avoid GPU/printing contention
+    const p = await createPdfForItem(items[i], i);
+    outputs.push(p);
+  }
+  return outputs;
+});
+
+
+
+
+
+
